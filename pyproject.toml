@@ -1,7 +1,7 @@
 [project]
 name = "profile-service"
-version = "0.2.0"
-description = "Universal Human Profile - Digital Biographer with Knowledge Graph"
+version = "0.4.0"
+description = "Universal Human Profile - Digital Biographer with Knowledge Graph, Life Stream, Media Understanding & Personal Agent"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -14,11 +14,27 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.25",
     "asyncpg>=0.29.0",
     "alembic>=1.13.0",
+    # ClickHouse for Life Stream
+    "clickhouse-connect>=0.7.0",
+    "aiochclient>=2.5.0",
+    # Object Storage (MinIO/S3)
+    "minio>=7.2.0",
+    "boto3>=1.34.0",
+    # Vector Database
+    "chromadb>=0.4.0",
     # Kafka
     "aiokafka>=0.10.0",
     # AI
     "google-generativeai>=0.3.0",
     "openai>=1.10.0",
+    "pillow>=10.2.0",
+    # ML / Pattern Mining
+    "scikit-learn>=1.4.0",
+    "numpy>=1.26.0",
+    # Background Tasks
+    "apscheduler>=3.10.0",
+    # Encryption
+    "cryptography>=42.0.0",
     # Utils
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
@@ -26,6 +42,9 @@ dependencies = [
     "httpx>=0.26.0",
     "python-multipart>=0.0.6",
     "aiofiles>=23.2.0",
+    # Blockchain
+    "web3>=6.0.0",
+    "eth-account>=0.10.0",
 ]
 
 [project.optional-dependencies]

@@ -23,6 +23,63 @@ services:
     networks:
       - profile-network
 
+  # ClickHouse for Life Stream (Big Data Events)
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: profile-clickhouse
+    ports:
+      - "8123:8123"  # HTTP
+      - "9000:9000"  # Native
+    environment:
+      - CLICKHOUSE_DB=life_stream
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ./scripts/clickhouse_init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - profile-network
+
+  # MinIO Object Storage (S3-compatible) for Media
+  minio:
+    image: minio/minio:latest
+    container_name: profile-minio
+    ports:
+      - "9001:9000"   # API
+      - "9002:9001"   # Console
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - profile-network
+
+  # ChromaDB Vector Database for Media Embeddings
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: profile-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=false
+    networks:
+      - profile-network
+
   # PostgreSQL for documents and history
   postgres:
     image: postgres:16-alpine
@@ -91,6 +148,15 @@ services:
       - POSTGRES_USER=profile
       - POSTGRES_PASSWORD=profile123
       - POSTGRES_DB=profile_db
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_DATABASE=life_stream
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_BUCKET=profile-media
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - API_DEBUG=true
@@ -99,8 +165,91 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - profile-network
+    restart: unless-stopped
+
+  # Pattern Miner Worker (Life Stream AI)
+  pattern-miner:
+    build: .
+    container_name: profile-pattern-miner
+    command: python -m app.life_stream.workers.pattern_miner
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password123
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_DATABASE=life_stream
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - profile-network
+    profiles:
+      - workers
+    restart: unless-stopped
+
+  # Vision Worker (Media Analysis AI)
+  vision-worker:
+    build: .
+    container_name: profile-vision-worker
+    command: python -m app.media.workers.vision_worker
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password123
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_BUCKET=profile-media
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - profile-network
+    profiles:
+      - workers
+    restart: unless-stopped
+
+  # Agent Runtime (Personal AI Agents)
+  agent-runtime:
+    build: .
+    container_name: profile-agent-runtime
+    command: python -m app.agent.runtime
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password123
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=8123
+      - CLICKHOUSE_DATABASE=life_stream
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - profile-network
+    profiles:
+      - agents
     restart: unless-stopped
 
   # Kafka Event Consumer (optional)
@@ -136,6 +285,10 @@ volumes:
   postgres_data:
   zookeeper_data:
   kafka_data:
+  clickhouse_data:
+  clickhouse_logs:
+  minio_data:
+  chroma_data:
 
 networks:
   profile-network:
