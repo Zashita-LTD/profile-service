@@ -1,171 +1,299 @@
-# Profile Service
+# Profile Service - Universal Human Profile / Digital Biographer
 
-Graph-based profile service using Neo4j for managing People, Companies, Skills, Interests, Events and their relationships.
+Сервис для построения глубоких цифровых профилей людей (Human Knowledge Graph).
 
-## 🎯 Назначение
+## 🎯 Что это даёт
 
-Сервис управления профилями и связями между сущностями:
-- Люди и их связи (кто кого знает)
-- Компании и сотрудники
-- Навыки и интересы
-- События и встречи
+- **Поиск связей**: "Кто из моих знакомых знает директора Кнауф?" — граф найдёт путь за миллисекунды
+- **Психологический портрет**: AI проанализирует историю и скажет: "Он консерватор, любит надёжность, не предлагай ему стартапы"
+- **Web 3.0 Identity**: В будущем этот профиль может стать SBT (Soulbound Token) — цифровым паспортом репутации
 
-## 📊 Граф-модель данных
+## 🏗️ Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        GRAPH SCHEMA                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│   ┌─────────┐         WORKS_AT           ┌─────────┐            │
-│   │ Person  │ ──────────────────────────▶│ Company │            │
-│   │         │    {role, since}           │         │            │
-│   └────┬────┘                            └─────────┘            │
-│        │                                                         │
-│        │ KNOWS                                                   │
-│        │ {strength: 0.0-1.0}                                    │
-│        ▼                                                         │
-│   ┌─────────┐                                                    │
-│   │ Person  │                                                    │
-│   └────┬────┘                                                    │
-│        │                                                         │
-│        │ INTERESTED_IN          HAS_SKILL                       │
-│        │                        │                                │
-│        ▼                        ▼                                │
-│   ┌──────────┐            ┌─────────┐                           │
-│   │ Interest │            │  Skill  │                           │
-│   │          │            │         │                           │
-│   └──────────┘            └─────────┘                           │
-│                                                                  │
-│   ┌─────────┐     PARTICIPATED_IN      ┌─────────┐             │
-│   │ Person  │ ─────────────────────────▶│  Event  │             │
-│   │         │    {role: "host"}         │         │             │
-│   └─────────┘                           └─────────┘             │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     Profile Service                          │
+├──────────┬──────────┬──────────┬──────────┬────────────────┤
+│ GraphQL  │   REST   │  Kafka   │    AI    │  Enrichment    │
+│   API    │   API    │ Consumer │ Analysis │   Pipeline     │
+├──────────┴──────────┴──────────┴──────────┴────────────────┤
+│                     Business Logic                           │
+├─────────────────────────────┬───────────────────────────────┤
+│        Neo4j                │         PostgreSQL            │
+│   (Graph Database)          │    (Documents & History)      │
+│   - Person, Company         │    - PersonDocument           │
+│   - Skills, Interests       │    - PersonFact               │
+│   - Relationships           │    - Biography                │
+└─────────────────────────────┴───────────────────────────────┘
 ```
 
-## 🏗️ Структура проекта
+## 📊 Графовая модель
 
-```
-profile-service/
-├── src/
-│   └── profile_service/
-│       ├── __init__.py
-│       ├── main.py              # FastAPI app
-│       ├── config.py            # Settings
-│       ├── database.py          # Neo4j connection
-│       ├── models/              # Pydantic models
-│       │   ├── __init__.py
-│       │   ├── person.py
-│       │   ├── company.py
-│       │   ├── skill.py
-│       │   ├── interest.py
-│       │   └── event.py
-│       ├── repositories/        # Neo4j queries
-│       │   ├── __init__.py
-│       │   ├── person_repo.py
-│       │   ├── company_repo.py
-│       │   └── relationship_repo.py
-│       └── routers/             # API endpoints
-│           ├── __init__.py
-│           ├── persons.py
-│           ├── companies.py
-│           ├── relationships.py
-│           └── graph.py
-├── tests/
-├── docker-compose.yml
-├── Dockerfile
-├── pyproject.toml
-└── README.md
+```cypher
+(:Person)-[:WORKS_AT {role, since, until}]->(:Company)
+(:Person)-[:KNOWS {strength, context}]->(:Person)
+(:Person)-[:HAS_SKILL {level, years}]->(:Skill)
+(:Person)-[:INTERESTED_IN {level}]->(:Interest)
+(:Person)-[:PARTICIPATED_IN {role}]->(:Event)
 ```
 
 ## 🚀 Быстрый старт
 
-### С Docker Compose
+### Docker Compose
 
 ```bash
-# Запуск Neo4j + API
-docker-compose up -d
+# Запустить все сервисы
+docker compose up -d
 
-# API доступен на http://localhost:8002
-# Neo4j Browser на http://localhost:7474
+# С Kafka consumer
+docker compose --profile consumer up -d
 ```
+
+Сервисы:
+- **API**: http://localhost:8002
+- **GraphQL**: http://localhost:8002/graphql
+- **Neo4j Browser**: http://localhost:7474
 
 ### Локально
 
 ```bash
-# Установка зависимостей
+# Установить зависимости
 pip install -e .
 
-# Запуск Neo4j (Docker)
-docker run -d \
-  --name neo4j \
-  -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/password \
-  neo4j:5
+# Запустить базы (Docker)
+docker compose up -d neo4j postgres
 
-# Запуск API
-uvicorn profile_service.main:app --reload --port 8002
+# Запустить API
+python -m app.main
 ```
 
-## 📡 API Endpoints
+## 📡 GraphQL API
 
-### Persons
-- `POST /api/persons` - Создать персону
-- `GET /api/persons/{id}` - Получить персону
-- `GET /api/persons` - Список персон
-- `PUT /api/persons/{id}` - Обновить персону
-- `DELETE /api/persons/{id}` - Удалить персону
+### Получить человека с карьерой и друзьями
 
-### Companies
-- `POST /api/companies` - Создать компанию
-- `GET /api/companies/{id}` - Получить компанию
-- `GET /api/companies` - Список компаний
-
-### Relationships
-- `POST /api/relationships/works-at` - Человек работает в компании
-- `POST /api/relationships/knows` - Люди знакомы
-- `POST /api/relationships/interested-in` - Интерес
-- `POST /api/relationships/has-skill` - Навык
-
-### Graph Queries
-- `GET /api/graph/connections/{person_id}` - Связи человека
-- `GET /api/graph/shortest-path` - Кратчайший путь между людьми
-- `GET /api/graph/common-interests` - Общие интересы
-- `GET /api/graph/colleagues/{person_id}` - Коллеги
-
-## 🔍 Примеры Cypher запросов
-
-```cypher
-// Найти всех знакомых с силой связи > 0.5
-MATCH (p:Person {id: $personId})-[k:KNOWS]->(friend:Person)
-WHERE k.strength > 0.5
-RETURN friend, k.strength
-
-// Найти путь между двумя людьми
-MATCH path = shortestPath(
-  (a:Person {id: $person1})-[*]-(b:Person {id: $person2})
-)
-RETURN path
-
-// Люди с общими интересами
-MATCH (p1:Person)-[:INTERESTED_IN]->(i:Interest)<-[:INTERESTED_IN]-(p2:Person)
-WHERE p1.id = $personId AND p1 <> p2
-RETURN p2, collect(i.name) as commonInterests
-
-// Коллеги по компании
-MATCH (p:Person {id: $personId})-[:WORKS_AT]->(c:Company)<-[:WORKS_AT]-(colleague:Person)
-WHERE p <> colleague
-RETURN colleague, c.name as company
+```graphql
+query {
+  person(id: "uuid-here") {
+    name
+    career {
+      company { name }
+      role
+      since
+      isCurrent
+    }
+    friends(depth: 2) {
+      person { name }
+      distance
+      strength
+    }
+    personality {
+      personalityType
+      communicationStyle
+      decisionMaking
+    }
+    networkStats {
+      directConnections
+      secondDegree
+      networkReach
+    }
+  }
+}
 ```
 
-## 🧪 Тесты
+### Найти экспертов
+
+```graphql
+query {
+  findExperts(skill: "BIM", location: "Москва", minLevel: "advanced") {
+    person {
+      name
+      location
+    }
+    skill {
+      name
+      level
+      yearsExperience
+    }
+  }
+}
+```
+
+### Найти путь между людьми
+
+```graphql
+query {
+  findPath(fromId: "uuid-1", toId: "uuid-2") {
+    nodes { name }
+    distance
+    intermediaries
+  }
+}
+```
+
+### Сгенерировать биографию (AI)
+
+```graphql
+mutation {
+  generateBiography(input: {
+    personId: "uuid-here"
+    style: "professional"
+    language: "ru"
+  }) {
+    content
+    factsCount
+    modelUsed
+  }
+}
+```
+
+### Анализ личности (AI)
+
+```graphql
+mutation {
+  analyzePersonality(personId: "uuid-here") {
+    personality {
+      personalityType
+      communicationStyle
+      summary
+    }
+  }
+}
+```
+
+## 📥 REST API - Импорт данных
+
+### Импорт Email
 
 ```bash
-pytest tests/ -v
+curl -X POST http://localhost:8002/api/ingest/email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Добрый день!\n\nПрошу рассмотреть...\n\nС уважением,\nИван Петров\nДиректор по закупкам\nООО СтройТрест\n+7 (999) 123-45-67"
+  }'
 ```
 
-## 📝 Лицензия
+### Импорт Резюме
+
+```bash
+curl -X POST http://localhost:8002/api/ingest/resume \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "ИВАНОВ ИВАН ПЕТРОВИЧ\n\nОпыт работы:\n2020-настоящее время: ООО Защита ЛТД, Директор\n..."
+  }'
+```
+
+### Импорт LinkedIn
+
+```bash
+curl -X POST http://localhost:8002/api/ingest/linkedin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": {"firstName": "Ivan", "lastName": "Petrov", ...},
+    "url": "https://linkedin.com/in/ivanpetrov"
+  }'
+```
+
+## 📨 Kafka Events
+
+Топики:
+- `events.email` - входящие email
+- `events.linkedin` - данные LinkedIn
+- `events.resume` - резюме
+
+Формат сообщения:
+```json
+{
+  "type": "email",
+  "source": "erp-system",
+  "data": {
+    "content": "...",
+    "person_id": "optional-uuid"
+  }
+}
+```
+
+## 🧠 AI Возможности
+
+### Biography Generator
+Собирает все факты из графа и генерирует связный текст:
+
+> *"Иван начал карьеру в 2010 году в СтройТресте, где познакомился с Петром Сидоровым. Вместе они увлекаются рыбалкой и часто обсуждают новые строительные технологии. В 2018 году Иван перешёл в Защиту ЛТД, где применил свой 15-летний опыт в продажах..."*
+
+### Personality Analyzer
+Определяет психологический профиль на основе:
+- Карьерного пути (стабильность/смена работ)
+- Навыков (технические/коммуникативные)
+- Интересов
+- Стиля переписки
+
+Выдаёт рекомендации: *"Предпочитает надёжных поставщиков с историей. Не предлагайте стартапы."*
+
+## 📁 Структура проекта
+
+```
+profile-service/
+├── app/
+│   ├── api/
+│   │   └── graphql/        # GraphQL Schema & Resolvers
+│   ├── analysis/           # AI аналитика
+│   │   ├── biography.py    # Генератор биографий
+│   │   └── personality.py  # Анализ личности
+│   ├── db/                 # Database connections
+│   │   ├── neo4j.py
+│   │   ├── postgres.py
+│   │   └── models.py       # SQLAlchemy models
+│   ├── events/             # Kafka consumer
+│   ├── graph/              # Neo4j models & queries
+│   │   ├── nodes.py
+│   │   ├── rels.py
+│   │   └── queries.py
+│   ├── ingestion/          # Data parsers
+│   │   ├── email_parser.py
+│   │   ├── resume_parser.py
+│   │   ├── linkedin_parser.py
+│   │   └── enrichment.py
+│   ├── config.py
+│   └── main.py
+├── docker-compose.yml
+└── pyproject.toml
+```
+
+## 🔧 Переменные окружения
+
+```env
+# Neo4j
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password123
+
+# PostgreSQL
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5433
+POSTGRES_USER=profile
+POSTGRES_PASSWORD=profile123
+POSTGRES_DB=profile_db
+
+# Kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+
+# AI (Gemini)
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-1.5-flash
+```
+
+## 📈 Roadmap
+
+- [x] GraphQL API
+- [x] Neo4j Integration
+- [x] PostgreSQL for documents
+- [x] AI Biography Generator
+- [x] Personality Analyzer
+- [x] Email/Resume/LinkedIn parsers
+- [x] Kafka event consumer
+- [ ] Telegram bot integration
+- [ ] CalDAV calendar sync
+- [ ] SBT (Soulbound Token) export
+
+## 📄 License
 
 MIT

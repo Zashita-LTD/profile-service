@@ -1,17 +1,31 @@
 [project]
 name = "profile-service"
-version = "0.1.0"
-description = "Graph-based profile service with Neo4j"
+version = "0.2.0"
+description = "Universal Human Profile - Digital Biographer with Knowledge Graph"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    # API
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
+    "strawberry-graphql[fastapi]>=0.219.0",
+    # Databases
     "neo4j>=5.17.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    # Kafka
+    "aiokafka>=0.10.0",
+    # AI
+    "google-generativeai>=0.3.0",
+    "openai>=1.10.0",
+    # Utils
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "python-dotenv>=1.0.0",
     "httpx>=0.26.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.2.0",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +34,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.1.0",
     "mypy>=1.8.0",
+    "black>=24.1.0",
 ]
 
 [build-system]

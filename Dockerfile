@@ -2,18 +2,36 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project files
 COPY pyproject.toml .
+COPY README.md .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir .
 
-# Copy source code
-COPY src/ src/
+# Copy application code (new structure)
+COPY app/ ./app/
+
+# Copy scripts
+COPY scripts/ ./scripts/ 2>/dev/null || true
+
+# Keep old src for backward compatibility
+COPY src/ ./src/ 2>/dev/null || true
 
 # Set Python path
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8002
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8002/health || exit 1
+
 # Run the application
-CMD ["uvicorn", "profile_service.main:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002"]
